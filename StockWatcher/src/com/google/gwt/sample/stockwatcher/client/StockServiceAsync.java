@@ -5,5 +5,5 @@ import com.google.gwt.user.client.rpc.AsyncCallback;
 public interface StockServiceAsync {
 	public void addStock(String symbol, AsyncCallback<Void> async);
 	public void removeStock(String symbol, AsyncCallback<Void> async);
-	public void getStock(AsyncCallback<String[]> async);
+	public void getStocks(AsyncCallback<String[]> async);
 }

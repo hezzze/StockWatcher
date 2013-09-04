@@ -42,9 +42,9 @@ public class StockWatcher implements EntryPoint {
 			"Please signin to your Google Acount to acess the stockWatcher application");
 	private Anchor signInLink = new Anchor("Sign In");
 	private Anchor signOutLink = new Anchor("Sign Out");
-	
-	private final StockServiceAsync stockService = GWT.create(StockService.class);
-	
+
+	private final StockServiceAsync stockService = GWT
+			.create(StockService.class);
 
 	/** * Entry point method. */
 	@Override
@@ -55,7 +55,8 @@ public class StockWatcher implements EntryPoint {
 				new AsyncCallback<LoginInfo>() {
 
 					@Override
-					public void onFailure(Throwable caught) {
+					public void onFailure(Throwable error) {
+						handleError(error);
 					}
 
 					@Override
@@ -86,9 +87,8 @@ public class StockWatcher implements EntryPoint {
  */
 	public void loadStockWatcher() {
 		// Set up sign out hyperlink.
-		signOutLink.setHref(loginInfo.getLoginUrl());
-		
-		
+		signOutLink.setHref(loginInfo.getLogoutUrl());
+
 		// Create table for stock data.
 		stocksFlexTable.setText(0, 0, "Symbol");
 		stocksFlexTable.setText(0, 1, "Price");
@@ -106,6 +106,8 @@ public class StockWatcher implements EntryPoint {
 		stocksFlexTable.getCellFormatter().addStyleName(0, 3,
 				"watchListRemoveColumn");
 
+		loadStocks();
+
 		// Assemble Add Stock
 		// panel.
 		addPanel.add(newSymbolTextBox);
@@ -113,6 +115,7 @@ public class StockWatcher implements EntryPoint {
 		addPanel.addStyleName("addPanel");
 
 		// Assemble Main panel.
+		mainPanel.add(signOutLink);
 		mainPanel.add(stocksFlexTable);
 		mainPanel.add(addPanel);
 		mainPanel.add(lastUpdatedLabel);
@@ -151,23 +154,35 @@ public class StockWatcher implements EntryPoint {
 		refreshTimer.scheduleRepeating(REFRESH_INTERVAL);
 	}
 
-	private void addStock() {
-		final String symbol = newSymbolTextBox.getText().toUpperCase().trim();
-		newSymbolTextBox.setFocus(true);
+	private void loadStocks() {
+		stockService.getStocks(new AsyncCallback<String[]>() {
 
-		if (!symbol.matches("^[0-9A-Z\\.]{1,10}$")) {
-			Window.alert("'" + symbol + "' is not a valid symbol.");
-			newSymbolTextBox.selectAll();
-			return;
+			@Override
+			public void onFailure(Throwable error) {
+				handleError(error);
+			}
+
+			@Override
+			public void onSuccess(String[] symbols) {
+				displayStocks(symbols);
+
+			}
+
+		});
+
+	}
+
+	private void displayStocks(String[] symbols) {
+		for (String symbol : symbols) {
+			displayStock(symbol);
 		}
 
-		newSymbolTextBox.setText("");
+	}
 
-		// Don't add the stock if it's already in the table.
-		if (stocks.contains(symbol)) {
-			return;
-		}
-
+	/**
+	 * @param symbol
+	 */
+	public void displayStock(final String symbol) {
 		// Add the stock to the table.
 		int row = stocksFlexTable.getRowCount();
 		stocks.add(symbol);
@@ -186,9 +201,8 @@ public class StockWatcher implements EntryPoint {
 		removeStockButton.addClickHandler(new ClickHandler() {
 			@Override
 			public void onClick(ClickEvent event) {
-				int removeIndex = stocks.indexOf(symbol);
-				stocks.remove(removeIndex);
-				stocksFlexTable.removeRow(removeIndex + 1);
+				removeStock(symbol);
+
 			}
 		});
 
@@ -196,7 +210,81 @@ public class StockWatcher implements EntryPoint {
 
 		// Get the stock price.
 		refreshWatchList();
+	}
 
+	
+
+	private void addStock() {
+		final String symbol = newSymbolTextBox.getText().toUpperCase().trim();
+		newSymbolTextBox.setFocus(true);
+
+		if (!symbol.matches("^[0-9A-Z\\.]{1,10}$")) {
+			Window.alert("'" + symbol + "' is not a valid symbol.");
+			newSymbolTextBox.selectAll();
+			return;
+		}
+
+		newSymbolTextBox.setText("");
+
+		// Don't add the stock if it's already in the table.
+		if (stocks.contains(symbol)) {
+			return;
+		}
+
+		addStock(symbol);
+
+	}
+
+	private void addStock(final String symbol) {
+		stockService.addStock(symbol, new AsyncCallback<Void>() {
+
+			@Override
+			public void onFailure(Throwable error) {
+				handleError(error);
+			}
+
+			@Override
+			public void onSuccess(Void ignore) {
+				displayStock(symbol);
+			}
+
+		});
+
+	}
+	
+	/**
+	 * @param symbol
+	 */
+	public void removeStock(final String symbol) {
+		stockService.removeStock(symbol, new AsyncCallback<Void>() {
+
+			@Override
+			public void onFailure(Throwable error) {
+				handleError(error);
+			}
+
+			@Override
+			public void onSuccess(Void result) {
+				undisplayStock(symbol);
+			}
+
+		});
+	}
+
+	/**
+	 * @param symbol
+	 */
+	public void undisplayStock(final String symbol) {
+		int removeIndex = stocks.indexOf(symbol);
+		stocks.remove(removeIndex);
+		stocksFlexTable.removeRow(removeIndex + 1);
+	}
+	
+	private void handleError(Throwable error) {
+		Window.alert(error.getMessage());
+		if (error instanceof NotLoggedInException) {
+			Window.Location.replace(loginInfo.getLogoutUrl());
+		}
 	}
 
 	/**
